@@ -14,7 +14,7 @@ const WorkoutDetails = ({ workout }) => {
     }
 
     const response = await fetch(
-      "https://fitnesstrack-1-p0t0.onrender.com/api/workouts" + workout._id,
+      "https://fitnesstrack-1-p0t0.onrender.com/api/workouts/" + workout._id,
       {
         method: "DELETE",
         headers: {

@@ -46,7 +46,7 @@ export default function FitBot() {
 
     try {
       const response = await fetch(
-        "https://fitnesstrack-1-p0t0.onrender.com/chat",
+        "https://fitnesstrack-gk1s.onrender.com/api/chatbot/chat",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
