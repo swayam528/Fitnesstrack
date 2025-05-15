@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useWorkoutsContext } from "../hooks/useWorkoutsContext";
 import { useAuthContext } from "../hooks/useAuthContext";
+
 const WorkoutForm = () => {
   const { dispatch } = useWorkoutsContext();
   const { user } = useAuthContext();
@@ -9,8 +10,7 @@ const WorkoutForm = () => {
   const [reps, setReps] = useState("");
   const [error, setError] = useState(null);
   const [emptyFields, setEmptyFields] = useState([]);
-  console.log("User token:", user?.token);
-  console.log("User object:", user);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) {
@@ -18,30 +18,33 @@ const WorkoutForm = () => {
       return;
     }
     const workout = { title, weight, reps };
-    const response = await fetch(
-      "https://fitnesstrack-1-p0t0.onrender.com/api/workouts",
-      {
+    try {
+      const response = await fetch("http://localhost:4000/api/workouts", {
         method: "POST",
         body: JSON.stringify(workout),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${user.token}`,
         },
-      }
-    );
-    const json = await response.json();
+      });
+      const json = await response.json();
 
-    if (!response.ok) {
-      setError(json.error);
-      setEmptyFields(json.emptyFields);
-    }
-    if (response.ok) {
+      if (!response.ok) {
+        setError(json.error);
+        // Make sure emptyFields is always an array
+        setEmptyFields(Array.isArray(json.emptyFields) ? json.emptyFields : []);
+      } else {
+        setEmptyFields([]);
+        setError(null);
+        setTitle("");
+        setWeight("");
+        setReps("");
+        dispatch({ type: "CREATE_WORKOUT", payload: json });
+      }
+    } catch (err) {
+      console.error("Error submitting workout:", err);
+      setError("Failed to connect to server. Please try again.");
       setEmptyFields([]);
-      setError(null);
-      setTitle("");
-      setWeight("");
-      setReps("");
-      dispatch({ type: "CREATE_WORKOUT", payload: json });
     }
   };
 
@@ -54,7 +57,7 @@ const WorkoutForm = () => {
         type="text"
         onChange={(e) => setTitle(e.target.value)}
         value={title}
-        className={emptyFields.includes("title") ? "error" : ""}
+        className={emptyFields?.includes("title") ? "error" : ""}
       />
 
       <label>Weight (in lbs):</label>
@@ -62,7 +65,7 @@ const WorkoutForm = () => {
         type="number"
         onChange={(e) => setWeight(e.target.value)}
         value={weight}
-        className={emptyFields.includes("weight") ? "error" : ""}
+        className={emptyFields?.includes("weight") ? "error" : ""}
       />
 
       <label>Number of Reps:</label>
@@ -70,7 +73,7 @@ const WorkoutForm = () => {
         type="number"
         onChange={(e) => setReps(e.target.value)}
         value={reps}
-        className={emptyFields.includes("reps") ? "error" : ""}
+        className={emptyFields?.includes("reps") ? "error" : ""}
       />
 
       <button>Add Workout</button>

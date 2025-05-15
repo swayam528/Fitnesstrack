@@ -8,7 +8,125 @@ import {
   Typography,
   Avatar,
   CircularProgress,
+  Paper,
+  IconButton,
+  Zoom,
+  Fade,
 } from "@mui/material";
+import SendIcon from "@mui/icons-material/Send";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
+import PersonIcon from "@mui/icons-material/Person";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { keyframes } from "@emotion/react";
+import { styled } from "@mui/material/styles";
+
+// Pulse animation for the loading state
+const pulse = keyframes`
+  0% {
+    transform: scale(0.95);
+  }
+  70% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(0.95);
+  }
+`;
+
+const ChatContainer = styled(Box)(({ theme }) => ({
+  height: "calc(100vh - 64px)",
+  display: "flex",
+  flexDirection: "column",
+  backgroundColor: "#f8f9fa", // Light background matching app style
+  position: "relative",
+}));
+
+const Header = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(2),
+  borderRadius: 0,
+  background: "white", // Match navbar color
+  color: "#333", // Dark text like navbar
+  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)", // Subtle shadow like navbar
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: theme.spacing(2),
+  position: "relative",
+  zIndex: 10,
+}));
+
+const MessageBubble = styled(Paper, {
+  shouldForwardProp: (prop) => prop !== "isBot",
+})(({ theme, isBot }) => ({
+  padding: theme.spacing(1.5, 2),
+  maxWidth: "70%",
+  borderRadius: isBot ? "0 18px 18px 18px" : "18px 0 18px 18px",
+  boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
+  background: isBot ? "#ffffff" : "#00C851", // Green color matching the "Chat with FitBot" button
+  color: isBot ? theme.palette.text.primary : "#fff",
+  position: "relative",
+  "& p": {
+    margin: 0,
+    fontSize: "0.95rem",
+  },
+  "& a": {
+    color: isBot ? "#00C851" : "#fff", // Green links in bot messages
+    textDecoration: "underline",
+  },
+  "& ul, & ol": {
+    paddingLeft: theme.spacing(2.5),
+    marginTop: theme.spacing(0.5),
+    marginBottom: theme.spacing(0.5),
+  },
+  "& pre": {
+    backgroundColor: isBot ? "#f5f5f5" : "rgba(0, 0, 0, 0.1)",
+    padding: theme.spacing(1),
+    borderRadius: 4,
+    overflowX: "auto",
+    maxWidth: "100%",
+    fontSize: "0.85rem",
+  },
+  "& code": {
+    fontFamily: "monospace",
+    backgroundColor: isBot ? "#f5f5f5" : "rgba(0, 0, 0, 0.1)",
+    padding: "2px 4px",
+    borderRadius: 4,
+    fontSize: "0.85rem",
+  },
+}));
+
+const BotAvatar = styled(Avatar)(({ theme }) => ({
+  background: "#00C851", // Green to match app theme
+  boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+}));
+
+const UserAvatar = styled(Avatar)(({ theme }) => ({
+  background: "#76c7c0", // Complementary color
+  boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+}));
+
+const InputArea = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(2),
+  background: "white",
+  boxShadow: "0 -1px 3px rgba(0, 0, 0, 0.05)",
+  borderTop: "1px solid",
+  borderColor: "#eaeaea",
+  position: "relative",
+  zIndex: 5,
+}));
+
+const StyledTextField = styled(TextField)(({ theme }) => ({
+  "& .MuiOutlinedInput-root": {
+    borderRadius: 25,
+    transition: "all 0.3s ease",
+    "&:hover": {
+      boxShadow: "0 2px 5px rgba(0, 0, 0, 0.05)",
+    },
+    "&.Mui-focused": {
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+    },
+  },
+}));
 
 export default function FitBot() {
   const [messages, setMessages] = useState(() => {
@@ -26,11 +144,20 @@ export default function FitBot() {
 
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [typing, setTyping] = useState(false);
   const MAX_HISTORY_LENGTH = 10;
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem("fitbotai-messages", JSON.stringify(messages));
+    scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    // Auto focus the input field when the component mounts
+    inputRef.current?.focus();
+  }, []);
 
   const trimHistory = (history) => {
     if (history.length > MAX_HISTORY_LENGTH) {
@@ -39,30 +166,45 @@ export default function FitBot() {
     return history;
   };
 
+  const scrollToBottom = () => {
+    // Use setTimeout to ensure DOM is updated
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
   const sendMessage = async () => {
     if (!message.trim()) return;
-    setIsLoading(true);
+
+    const userMessage = message.trim();
     setMessage("");
+    setIsLoading(true);
+
+    // Add user message immediately
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { role: "user", content: userMessage },
+    ]);
+
+    // Show typing indicator
+    setTyping(true);
 
     try {
-      const response = await fetch(
-        "https://fitnesstrack-gk1s.onrender.com/api/chatbot/chat",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: message,
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      );
+      const response = await fetch("http://localhost:4000/api/chatbot/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: userMessage,
+                },
+              ],
+            },
+          ],
+        }),
+      });
 
       let newMessage = await response.json();
 
@@ -70,20 +212,21 @@ export default function FitBot() {
         newMessage = newMessage.text || JSON.stringify(newMessage);
       }
 
+      // Remove typing indicator and add bot response
+      setTyping(false);
       setMessages((prevMessages) => {
         const updatedMessages = [
-          ...prevMessages,
-          { role: "user", content: message },
+          ...prevMessages.filter((msg) => msg.role !== "typing"),
           { role: "model", content: newMessage },
         ].filter((msg) => msg.content && msg.content.trim() !== "");
         return trimHistory(updatedMessages);
       });
     } catch (e) {
       console.error("Error sending message:", e);
+      setTyping(false);
       setMessages((prevMessages) => {
         const updatedMessages = [
-          ...prevMessages,
-          { role: "user", content: message },
+          ...prevMessages.filter((msg) => msg.role !== "typing"),
           {
             role: "model",
             content: `Sorry, I encountered an error: ${e.message}`,
@@ -103,63 +246,41 @@ export default function FitBot() {
     }
   };
 
-  const messagesEndRef = useRef(null);
-  console.log(messages.length);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const clearChat = () => {
+    const initialMessage = {
+      role: "model",
+      content:
+        "Hello! Welcome to FitBot, your personal fitness assistant. I'm here to help you achieve your health and fitness goals. What can I assist you with today?",
+    };
+    setMessages([initialMessage]);
   };
 
-  useEffect(() => {
-    const filteredMessages = messages.filter(
-      (msg) => msg.content && msg.content.trim() !== ""
-    );
-    localStorage.setItem("fitbotai-messages", JSON.stringify(filteredMessages));
-  }, [messages]);
-
   return (
-    <Box
-      sx={{
-        height: "calc(100vh - 64px)",
-        display: "flex",
-        flexDirection: "column",
-        bgcolor: "#fff",
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          // p: 0,
-          // borderBottom: "0px solid",
-          borderColor: "divider",
-          bgcolor: "#fff",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {/* <Avatar
-            sx={{
-              bgcolor: "#fff",
-              width: 40,
-              height: 40,
-            }}
-          >
-            F
-          </Avatar> */}
-
+    <ChatContainer>
+      <Header elevation={1}>
+        <SmartToyIcon sx={{ color: "#00C851" }} fontSize="large" />
         <Typography
           variant="h5"
           fontWeight="600"
-          textAlign={"center"}
-          color={"black"}
+          textAlign="center"
+          color="#333"
         >
           FitBot AI
         </Typography>
-      </Box>
+        <IconButton
+          size="small"
+          sx={{
+            position: "absolute",
+            right: 16,
+            color: "rgba(0, 0, 0, 0.5)",
+          }}
+          onClick={clearChat}
+          title="Clear conversation"
+        >
+          <DeleteIcon />
+        </IconButton>
+      </Header>
 
-      {/* Messages Area */}
       <Box
         sx={{
           flexGrow: 1,
@@ -178,107 +299,151 @@ export default function FitBot() {
               msg.content.trim() !== ""
           )
           .map((msg, index) => (
-            <Box
-              key={index}
-              sx={{
-                display: "flex",
-                justifyContent:
-                  msg.role === "model" ? "flex-start" : "flex-end",
-                gap: 1,
-                alignItems: "flex-start",
-              }}
-            >
-              {msg.role === "model" && (
-                <Avatar
-                  sx={{
-                    bgcolor: "#1976d2",
-                    width: 32,
-                    height: 32,
-                  }}
-                >
-                  F
-                </Avatar>
-              )}
+            <Fade in={true} key={index} timeout={300}>
               <Box
                 sx={{
-                  maxWidth: "70%",
-                  p: 2,
-                  bgcolor: msg.role === "model" ? "#f5f5f5" : "#659bdf",
-                  color: msg.role === "model" ? "text.primary" : "white",
-                  borderRadius: 2,
-                  "& p": {
-                    m: 0,
-                  },
+                  display: "flex",
+                  justifyContent:
+                    msg.role === "model" ? "flex-start" : "flex-end",
+                  gap: 1.5,
+                  alignItems: "flex-start",
+                  mb: 1.5,
                 }}
               >
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                {msg.role === "model" && (
+                  <BotAvatar sx={{ width: 36, height: 36 }}>
+                    <SmartToyIcon fontSize="small" />
+                  </BotAvatar>
+                )}
+                <MessageBubble isBot={msg.role === "model"} elevation={1}>
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </MessageBubble>
+                {msg.role === "user" && (
+                  <UserAvatar sx={{ width: 36, height: 36 }}>
+                    <PersonIcon fontSize="small" />
+                  </UserAvatar>
+                )}
               </Box>
-              {msg.role === "user" && (
-                <Avatar
-                  sx={{
-                    bgcolor: "#00C853",
-                    width: 32,
-                    height: 32,
-                  }}
-                >
-                  U
-                </Avatar>
-              )}
-            </Box>
+            </Fade>
           ))}
+
+        {typing && (
+          <Fade in={typing} timeout={200}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "flex-start",
+                gap: 1.5,
+                mb: 1.5,
+              }}
+            >
+              <BotAvatar sx={{ width: 36, height: 36 }}>
+                <SmartToyIcon fontSize="small" />
+              </BotAvatar>
+              <Box
+                sx={{
+                  display: "flex",
+                  gap: 0.5,
+                  alignItems: "center",
+                  p: 1.5,
+                  borderRadius: "0 18px 18px 18px",
+                  bgcolor: "white",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    bgcolor: "#00C851",
+                    animation: `${pulse} 1s infinite ease-in-out`,
+                    animationDelay: "0s",
+                  }}
+                />
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    bgcolor: "#00C851",
+                    animation: `${pulse} 1s infinite ease-in-out`,
+                    animationDelay: "0.2s",
+                  }}
+                />
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    bgcolor: "#00C851",
+                    animation: `${pulse} 1s infinite ease-in-out`,
+                    animationDelay: "0.4s",
+                  }}
+                />
+              </Box>
+            </Box>
+          </Fade>
+        )}
+
         <div ref={messagesEndRef} />
       </Box>
 
-      {/* Input Area */}
-      <Box
-        sx={{
-          p: 2,
-          borderTop: "1px solid",
-          borderColor: "divider",
-          bgcolor: "white",
-        }}
-      >
-        <Stack direction="row" spacing={2}>
-          <TextField
+      <InputArea>
+        <Stack direction="row" spacing={1.5}>
+          <StyledTextField
             multiline
             maxRows={4}
-            placeholder="Type your message..."
+            placeholder="Ask FitBot something..."
             fullWidth
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyPress}
             variant="outlined"
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 2,
+            size="medium"
+            inputRef={inputRef}
+            disabled={isLoading}
+            InputProps={{
+              sx: {
+                py: 0.5,
+                px: 2,
               },
             }}
           />
-          <Button
-            variant="contained"
-            onClick={sendMessage}
-            disabled={isLoading || !message.trim()}
-            sx={{
-              minWidth: 100,
-              borderRadius: 2,
-              height: 56,
-            }}
-          >
-            {isLoading ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : (
-              "Send"
-            )}
-          </Button>
+          <Zoom in={!isLoading || message.trim() !== ""}>
+            <Button
+              variant="contained"
+              onClick={sendMessage}
+              disabled={isLoading || !message.trim()}
+              sx={{
+                minWidth: 56,
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                bgcolor: "#00C851", // Green to match app theme
+                "&:hover": {
+                  bgcolor: "#00a844", // Slightly darker green on hover
+                },
+                "&.Mui-disabled": {
+                  bgcolor: "rgba(0, 0, 0, 0.12)",
+                },
+              }}
+            >
+              {isLoading ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : (
+                <SendIcon />
+              )}
+            </Button>
+          </Zoom>
         </Stack>
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ mt: 1, display: "block", textAlign: "center" }}
+          sx={{ mt: 1.5, display: "block", textAlign: "center" }}
         >
           Press Enter to send, Shift + Enter for new line
         </Typography>
-      </Box>
-    </Box>
+      </InputArea>
+    </ChatContainer>
   );
 }
